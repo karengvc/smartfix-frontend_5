@@ -1,0 +1,6 @@
+{
+  "/api/auth": { "target": "http://localhost:8081", "secure": false },
+  "/api/equipos": { "target": "http://localhost:8082", "secure": false },
+  "/api/incidencias": { "target": "http://localhost:8083", "secure": false },
+  "/api/mantenimientos": { "target": "http://localhost:8084", "secure": false }
+}
