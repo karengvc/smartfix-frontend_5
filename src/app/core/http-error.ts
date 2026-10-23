@@ -14,6 +14,7 @@ export function mensajeError(err: unknown): string {
         return cuerpo.mensaje;
       }
     }
+    if (err.status >= 500) return 'El servicio no responde. Verifica que esté en ejecución.';
     if (err.status === 404) return 'El registro no existe.';
     if (err.status === 409) return 'El registro ya existe.';
     if (err.status === 401) return 'Credenciales incorrectas.';

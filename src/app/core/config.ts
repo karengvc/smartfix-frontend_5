@@ -6,9 +6,9 @@ export const CONFIG = {
     mantenimientos: '/api/mantenimientos'
   },
   mock: {
-  auth: true,
-  equipos: true,
-  incidencias: true,
-  mantenimientos: true
+  auth: false,
+  equipos: false,
+  incidencias: false,
+  mantenimientos: false
 }
 };

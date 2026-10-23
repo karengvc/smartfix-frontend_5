@@ -30,7 +30,7 @@ export interface Equipo {
 }
 
 export type EstadoIncidencia = 'REPORTADA' | 'ASIGNADA' | 'EN_PROCESO' | 'RESUELTA' | 'CERRADA';
-export type Prioridad = 'BAJA' | 'MEDIA' | 'ALTA';
+export type Prioridad = 'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA';
 
 export interface Incidencia {
   id?: number;

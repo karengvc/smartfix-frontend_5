@@ -35,6 +35,7 @@ import { ESTADOS_INCIDENCIA, Equipo, EstadoIncidencia, Incidencia } from '../mod
             <option value="BAJA">BAJA</option>
             <option value="MEDIA">MEDIA</option>
             <option value="ALTA">ALTA</option>
+            <option value="CRITICA">CRITICA</option>
           </select>
         </label>
         <label>Equipo afectado *
