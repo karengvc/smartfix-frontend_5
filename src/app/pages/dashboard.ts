@@ -108,7 +108,7 @@ import { ESTADOS_INCIDENCIA, ETIQUETA_ESTADO, Equipo, EstadoIncidencia, Incidenc
 
       <h2 class="titulo-sec">Todos los casos</h2>
       <app-filtros-casos [tipos]="tiposEquipo()" [tecnicos]="tecnicos()" (cambio)="filtro.set($event)" />
-      <div class="card glass table-wrap">
+      <div class="card glass table-wrap tabla-fija">
         @if (tabla().length === 0) {
           <p class="muted">No hay casos con ese filtro.</p>
         } @else {

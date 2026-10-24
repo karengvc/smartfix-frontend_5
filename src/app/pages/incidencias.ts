@@ -30,7 +30,7 @@ type Filtro = 'ESPERA' | 'CURSO' | 'FIN' | 'TODOS';
           <p class="muted">Equipos que llegaron al taller, en línea o en mostrador.</p>
         }
       </div>
-      @if (auth.tieneRol('USUARIO', 'ADMINISTRADOR')) {
+      @if (auth.tieneRol('USUARIO', 'ADMINISTRADOR', 'TECNICO')) {
         <button class="btn" (click)="nueva()">{{ esUsuario() ? '+ Reportar una falla' : '+ Recibir equipo en mostrador' }}</button>
       }
     </div>
@@ -39,7 +39,15 @@ type Filtro = 'ESPERA' | 'CURSO' | 'FIN' | 'TODOS';
       <form class="card form-grid glass-strong" [formGroup]="form" (ngSubmit)="guardar()" novalidate>
         <h2 class="span-2">{{ editandoId() ? 'Editar caso' : (esUsuario() ? 'Reportar una falla' : 'Recibir equipo en mostrador') }}</h2>
 
-        @if (auth.tieneRol('ADMINISTRADOR') && !editandoId()) {
+        @if (!esUsuario() && !editandoId()) {
+          <label class="span-2 check"><input type="checkbox" formControlName="clienteNuevo" (change)="cambiarCliente()" /> El cliente no tiene cuenta (crearla ahora)</label>
+        }
+        @if (!esUsuario() && !editandoId() && form.controls.clienteNuevo.value) {
+          <label>Nombre del cliente *<input formControlName="nuevoNombre" /></label>
+          <label>Correo para su cuenta *<input type="email" formControlName="nuevoCorreo" placeholder="cliente@correo.com" /></label>
+          <small class="span-2 muted">Su contraseña inicial será «Cliente123». Entrégale estos datos al cliente para que siga su equipo.</small>
+        }
+        @if (!esUsuario() && !editandoId() && !form.controls.clienteNuevo.value) {
           <label class="span-2">Cliente *
             <select formControlName="solicitanteId" (change)="cambiarCliente()">
               <option [ngValue]="0" disabled>Selecciona al cliente</option>
@@ -50,18 +58,27 @@ type Filtro = 'ESPERA' | 'CURSO' | 'FIN' | 'TODOS';
             @if (invalido('solicitanteId')) { <small class="error">Selecciona al cliente.</small> }
           </label>
         }
+        @if (equipoNuevo()) {
+          <label>Equipo *<input formControlName="eqNombre" placeholder="Ej. Laptop Dell" /></label>
+          <label>Tipo *<input formControlName="eqTipo" list="tiposEq" placeholder="Laptop, Impresora..." />
+            <datalist id="tiposEq"><option value="Laptop"></option><option value="Computadora"></option><option value="Impresora"></option><option value="Monitor"></option><option value="Tablet"></option></datalist></label>
+          <label>Marca *<input formControlName="eqMarca" /></label>
+        }
+        @if (!form.controls.clienteNuevo.value || esUsuario()) {
         <label class="span-2">Equipo *
-          <select formControlName="equipoId">
+          <select formControlName="equipoId" (change)="refrescarEquipoNuevo()">
             <option [ngValue]="0" disabled>Selecciona un equipo</option>
             @for (e of equiposDelForm(); track e.id) {
               <option [ngValue]="e.id">{{ e.nombre }} · {{ e.marca }}</option>
             }
+            @if (!esUsuario() && !editandoId()) { <option [ngValue]="-1">+ Otro equipo (nuevo)</option> }
           </select>
           @if (invalido('equipoId')) { <small class="error">Selecciona el equipo.</small> }
-          @if (equiposDelForm().length === 0) {
-            <small class="muted">{{ esUsuario() ? 'Primero registra tu equipo en "Mis equipos".' : 'Este cliente aún no tiene equipos registrados.' }}</small>
+          @if (equiposDelForm().length === 0 && esUsuario()) {
+            <small class="muted">Primero deja tu equipo en «Mis equipos».</small>
           }
         </label>
+        }
         <label class="span-2">¿Qué le pasa? *
           <input formControlName="titulo" placeholder="Ej. No enciende" />
           @if (invalido('titulo')) { <small class="error">Cuéntanos qué falla tiene.</small> }
@@ -213,7 +230,7 @@ type Filtro = 'ESPERA' | 'CURSO' | 'FIN' | 'TODOS';
         </div>
       }
 
-      <div class="card glass table-wrap">
+      <div class="card glass table-wrap tabla-fija">
         @if (cargando()) {
           <p class="muted">Cargando...</p>
         } @else if (visibles().length === 0) {
@@ -247,16 +264,16 @@ type Filtro = 'ESPERA' | 'CURSO' | 'FIN' | 'TODOS';
                     }
                     @if (auth.tieneRol('ADMINISTRADOR')) {
                       @if (i.estado !== 'FINALIZADO') {
-                        <button class="link" (click)="abrirAsignacion(i)">{{ i.tecnicoId ? 'Reasignar' : 'Asignar' }}</button>
+                        <button class="acc acc-azul" (click)="abrirAsignacion(i)">{{ i.tecnicoId ? 'Reasignar' : 'Asignar' }}</button>
                       }
                       @if (siguiente(i); as sig) {
-                        <button class="link" (click)="avanzar(i, sig)">Pasar a {{ etiqueta(sig) }}</button>
+                        <button class="acc acc-verde" (click)="avanzar(i, sig)">Pasar a {{ etiqueta(sig) }}</button>
                       }
-                      <button class="link" (click)="abrirCorreccion(i)">Corregir estado</button>
-                      <button class="link" (click)="editar(i)">Editar</button>
-                      <button class="link danger" (click)="eliminar(i)">Eliminar</button>
+                      <button class="acc acc-naranja" (click)="abrirCorreccion(i)">Corregir estado</button>
+                      <button class="acc acc-gris" (click)="editar(i)">🛠 Editar</button>
+                      <button class="acc acc-rojo" (click)="eliminar(i)">Eliminar</button>
                     }
-                    <button class="link" (click)="verHistorial(i)">Seguimiento</button>
+                    <button class="acc acc-morado" (click)="verHistorial(i)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg> Seguimiento</button>
                   </div></td>
                 </tr>
               }
@@ -308,7 +325,7 @@ export class Incidencias implements OnInit {
   protected readonly esUsuario = computed(() => this.auth.tieneRol('USUARIO'));
   protected readonly visibles = computed(() => {
     const f = this.filtro();
-    const base = this.incidencias().filter(i => f === 'TODOS' || this.coincide(i, f));
+    const base = this.incidencias().filter(i => f === 'TODOS' || this.filtroCasos().estado || this.coincide(i, f));
     return aplicarFiltro(base, this.filtroCasos(), this.equipos(), this.clientes(), this.tecnicos());
   });
   protected readonly equiposDelForm = computed(() => {
@@ -322,8 +339,15 @@ export class Incidencias implements OnInit {
     titulo: ['', Validators.required],
     descripcion: ['', Validators.required],
     prioridad: ['MEDIA', Validators.required],
-    equipoId: [0, [Validators.required, Validators.min(1)]]
+    equipoId: [0, [Validators.required, Validators.min(-1)]],
+    clienteNuevo: [false],
+    nuevoNombre: [''],
+    nuevoCorreo: [''],
+    eqNombre: [''],
+    eqTipo: [''],
+    eqMarca: ['']
   });
+  protected readonly equipoNuevo = signal(false);
 
   ngOnInit(): void {
     const staff = !this.esUsuario();
@@ -427,7 +451,8 @@ export class Incidencias implements OnInit {
   protected nueva(): void {
     this.editandoId.set(null);
     this.clienteForm.set(0);
-    this.form.reset({ solicitanteId: 0, prioridad: 'MEDIA', equipoId: 0 });
+    this.form.reset({ solicitanteId: 0, prioridad: 'MEDIA', equipoId: 0, clienteNuevo: false });
+    this.equipoNuevo.set(false);
     this.mostrarForm.set(true);
   }
 
@@ -440,7 +465,13 @@ export class Incidencias implements OnInit {
 
   protected cambiarCliente(): void {
     this.clienteForm.set(this.form.controls.solicitanteId.value);
-    this.form.controls.equipoId.setValue(0);
+    this.form.controls.equipoId.setValue(this.form.controls.clienteNuevo.value ? -1 : 0);
+    this.refrescarEquipoNuevo();
+  }
+
+  protected refrescarEquipoNuevo(): void {
+    this.equipoNuevo.set(!this.esUsuario() && !this.editandoId() &&
+      (this.form.controls.clienteNuevo.value || this.form.controls.equipoId.value === -1));
   }
 
   protected editar(i: Incidencia): void {
@@ -455,15 +486,19 @@ export class Incidencias implements OnInit {
 
   protected guardar(): void {
     const id = this.editandoId();
-    if (!id && !this.esUsuario() && this.form.controls.solicitanteId.value < 1) {
-      this.form.markAllAsTouched();
-      return;
-    }
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
     const v = this.form.getRawValue();
+    if (!id && !this.esUsuario() && v.solicitanteId < 1 && !v.clienteNuevo) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    if (!id && !this.esUsuario() && (v.clienteNuevo || v.equipoId === -1)) {
+      this.guardarMostradorNuevo();
+      return;
+    }
+    if (this.form.invalid || v.equipoId < 1) {
+      this.form.markAllAsTouched();
+      return;
+    }
     const datos = {
       titulo: v.titulo, descripcion: v.descripcion, prioridad: v.prioridad, equipoId: v.equipoId,
       solicitanteId: this.esUsuario() ? null : v.solicitanteId
@@ -482,6 +517,47 @@ export class Incidencias implements OnInit {
         this.notify.error(mensajeError(err));
       }
     });
+  }
+
+  private guardarMostradorNuevo(): void {
+    const v = this.form.getRawValue();
+    const faltan = !v.titulo.trim() || !v.descripcion.trim() || !v.eqNombre.trim() || !v.eqTipo.trim() || !v.eqMarca.trim()
+      || (v.clienteNuevo ? (!v.nuevoNombre.trim() || !v.nuevoCorreo.trim()) : v.solicitanteId < 1);
+    if (faltan) {
+      this.notify.error('Completa los datos del cliente, del equipo y del problema.');
+      return;
+    }
+    this.guardando.set(true);
+    const falla = (cliente: number, equipoId: number) => this.srv.crear({
+      titulo: v.titulo, descripcion: v.descripcion, prioridad: v.prioridad, equipoId, solicitanteId: cliente
+    } as Incidencia);
+    const equipo = (cliente: number) => this.equipoSrv.crear({
+      nombre: v.eqNombre.trim(), tipo: v.eqTipo.trim(), marca: v.eqMarca.trim(), estado: 'ACTIVO', propietarioId: cliente
+    } as Equipo);
+    const fin = (msg: string) => {
+      this.guardando.set(false);
+      this.mostrarForm.set(false);
+      this.notify.ok(msg);
+      this.cargar();
+      this.equipoSrv.listar().subscribe(l => this.equipos.set(l));
+      this.auth.clientes().subscribe(c => this.clientes.set(c));
+    };
+    const error = (err: unknown) => {
+      this.guardando.set(false);
+      this.notify.error(mensajeError(err));
+    };
+    const seguir = (cliente: number, aviso: string) => equipo(cliente).subscribe({
+      next: e => falla(cliente, e.id as number).subscribe({ next: () => fin(aviso), error }),
+      error
+    });
+    if (v.clienteNuevo) {
+      this.auth.registrar({ nombre: v.nuevoNombre.trim(), correo: v.nuevoCorreo.trim(), password: 'Cliente123' }).subscribe({
+        next: u => seguir(u.id, `Cuenta creada: ${u.correo} · contraseña Cliente123. Equipo recibido.`),
+        error
+      });
+    } else {
+      seguir(v.solicitanteId, 'Equipo recibido. Quedó en espera de un técnico.');
+    }
   }
 
   // ---- acciones con confirmación ----

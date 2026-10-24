@@ -6,10 +6,11 @@ export interface FiltroCasos {
   canal: string;
   tipo: string;
   tecnico: string;
+  estado: string;
   orden: string;
 }
 
-export const FILTRO_VACIO: FiltroCasos = { texto: '', prioridad: '', canal: '', tipo: '', tecnico: '', orden: 'id-desc' };
+export const FILTRO_VACIO: FiltroCasos = { texto: '', prioridad: '', canal: '', tipo: '', tecnico: '', estado: '', orden: 'id-desc' };
 
 const PESO: Record<string, number> = { CRITICA: 0, ALTA: 1, MEDIA: 2, BAJA: 3 };
 const norm = (t: string | null | undefined) =>
@@ -24,6 +25,7 @@ export function aplicarFiltro(
   const salida = lista.filter(i => {
     const e = eq(i.equipoId);
     if (f.prioridad && i.prioridad !== f.prioridad) return false;
+    if (f.estado && i.estado !== f.estado) return false;
     if (f.canal && i.canal !== f.canal) return false;
     if (f.tipo && e?.tipo !== f.tipo) return false;
     if (f.tecnico === 'SIN' && i.tecnicoId) return false;

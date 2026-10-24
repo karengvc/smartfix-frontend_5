@@ -29,7 +29,7 @@ import { Toast } from '../shared/toast';
         }
 
         <label>Contraseña
-          <input type="password" formControlName="password" />
+          <span class="pw"><input [type]="ver() ? 'text' : 'password'" formControlName="password" /><button type="button" class="ojo" (click)="ver.set(!ver())" aria-label="Mostrar u ocultar contraseña"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>@if (ver()) {<path d="M3 3l18 18"/>}</svg></button></span>
         </label>
         @if (form.controls.password.touched && form.controls.password.invalid) {
           <small class="error">Mínimo 6 caracteres.</small>
@@ -51,6 +51,7 @@ export class Register {
   private readonly notify = inject(NotifyService);
 
   protected readonly cargando = signal(false);
+  protected readonly ver = signal(false);
   protected readonly form = this.fb.group({
     nombre: ['', Validators.required],
     correo: ['', [Validators.required, Validators.email]],

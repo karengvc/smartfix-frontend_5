@@ -10,6 +10,12 @@ import { UsuarioResumen } from '../models/models';
     <div class="toolbar glass">
       <input class="buscar" type="search" placeholder="Buscar por equipo, serie, cliente, técnico o #caso"
              [ngModel]="f().texto" (ngModelChange)="set('texto', $event)" />
+      <select [ngModel]="f().estado" (ngModelChange)="set('estado', $event)">
+        <option value="">Todo estado</option>
+        <option value="RECIBIDO">Recibido</option><option value="EN_ANALISIS">En análisis</option>
+        <option value="EN_REPARACION">En reparación</option><option value="FINALIZADO">Finalizado</option>
+        <option value="DEVUELTO">Devuelto</option>
+      </select>
       <select [ngModel]="f().prioridad" (ngModelChange)="set('prioridad', $event)">
         <option value="">Toda urgencia</option>
         <option value="CRITICA">Crítica</option><option value="ALTA">Alta</option>

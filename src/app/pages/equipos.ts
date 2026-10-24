@@ -1,6 +1,8 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConfirmService } from '../core/confirm.service';
+import { Router } from '@angular/router';
+import { IncidenciaService } from '../core/incidencia.service';
 import { AuthService } from '../core/auth.service';
 import { EquipoService } from '../core/equipo.service';
 import { mensajeError } from '../core/http-error';
@@ -17,7 +19,7 @@ import { catchError, of } from 'rxjs';
         <p class="muted">{{ auth.tieneRol('USUARIO') ? 'Los equipos que registraste a tu nombre.' : 'Inventario de equipos de los clientes.' }}</p>
       </div>
       @if (auth.tieneRol('ADMINISTRADOR', 'USUARIO')) {
-        <button class="btn" (click)="nuevo()">+ {{ auth.tieneRol('USUARIO') ? 'Registrar mi equipo' : 'Nuevo equipo' }}</button>
+        <button class="btn" (click)="nuevo()">+ {{ auth.tieneRol('USUARIO') ? 'Dejar un equipo' : 'Nuevo equipo' }}</button>
       }
     </div>
 
@@ -48,13 +50,35 @@ import { catchError, of } from 'rxjs';
         <label>Número de serie
           <input formControlName="numeroSerie" />
         </label>
-        <label>Estado *
+        @if (auth.tieneRol('USUARIO') && !editandoId()) {
+          <h3 class="span-2 sub">¿Qué le pasa al equipo?</h3>
+          <label class="span-2">Problema *
+            <input formControlName="fallaTitulo" placeholder="Ej. No enciende" />
+            @if (fallaInvalida('fallaTitulo')) { <small class="error">Cuéntanos el problema.</small> }
+          </label>
+          <label class="span-2">Detalle *
+            <textarea rows="2" formControlName="fallaDetalle"></textarea>
+            @if (fallaInvalida('fallaDetalle')) { <small class="error">Agrega un detalle.</small> }
+          </label>
+          <label>¿Qué tan urgente es?
+            <select formControlName="prioridad">
+              <option value="BAJA">Puede esperar</option>
+              <option value="MEDIA">Normal</option>
+              <option value="ALTA">Urgente</option>
+              <option value="CRITICA">Muy urgente</option>
+            </select>
+          </label>
+        }
+        @if (!auth.tieneRol('USUARIO')) {
+        <label>Estado del equipo
           <select formControlName="estado">
             <option value="ACTIVO">ACTIVO</option>
             <option value="EN_MANTENIMIENTO">EN_MANTENIMIENTO</option>
             <option value="BAJA">BAJA</option>
           </select>
+          <small class="muted">ACTIVO: funciona y está disponible. EN_MANTENIMIENTO: está en el taller. BAJA: retirado, ya no se repara.</small>
         </label>
+        }
         @if (auth.tieneRol('ADMINISTRADOR')) {
           <label class="span-2">Dueño del equipo
             <select formControlName="propietarioId">
@@ -70,7 +94,7 @@ import { catchError, of } from 'rxjs';
         </label>
 
         <div class="span-2 actions">
-          <button class="btn" type="submit" [disabled]="guardando()">Guardar</button>
+          <button class="btn" type="submit" [disabled]="guardando()">{{ auth.tieneRol('USUARIO') && !editandoId() ? 'Enviar mi equipo' : 'Guardar' }}</button>
           <button class="btn btn-light" type="button" (click)="cancelar()">Cancelar</button>
         </div>
       </form>
@@ -133,6 +157,8 @@ export class Equipos implements OnInit {
   private readonly srv = inject(EquipoService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly notify = inject(NotifyService);
+  private readonly router = inject(Router);
+  private readonly incSrv = inject(IncidenciaService);
   private readonly confirmar = inject(ConfirmService);
 
   protected readonly equipos = signal<Equipo[]>([]);
@@ -165,6 +191,9 @@ export class Equipos implements OnInit {
     numeroSerie: [''],
     estado: ['ACTIVO', Validators.required],
     descripcion: [''],
+    fallaTitulo: [''],
+    fallaDetalle: [''],
+    prioridad: ['MEDIA'],
     propietarioId: [null as number | null]
   });
 
@@ -186,9 +215,14 @@ export class Equipos implements OnInit {
     return c.touched && c.invalid;
   }
 
+  protected fallaInvalida(c: 'fallaTitulo' | 'fallaDetalle'): boolean {
+    const x = this.form.controls[c];
+    return x.touched && !x.value.trim();
+  }
+
   protected nuevo(): void {
     this.editandoId.set(null);
-    this.form.reset({ estado: 'ACTIVO', propietarioId: null });
+    this.form.reset({ estado: 'ACTIVO', propietarioId: null, prioridad: 'MEDIA' });
     this.mostrarForm.set(true);
   }
 
@@ -211,8 +245,42 @@ export class Equipos implements OnInit {
       this.form.markAllAsTouched();
       return;
     }
-    const datos = this.form.getRawValue() as Equipo;
+    const v = this.form.getRawValue();
+    const datos = {
+      nombre: v.nombre, tipo: v.tipo, marca: v.marca, modelo: v.modelo, numeroSerie: v.numeroSerie,
+      estado: v.estado, descripcion: v.descripcion, propietarioId: v.propietarioId
+    } as Equipo;
     const id = this.editandoId();
+    if (this.auth.tieneRol('USUARIO') && !id) {
+      if (!v.fallaTitulo.trim() || !v.fallaDetalle.trim()) {
+        this.form.markAllAsTouched();
+        return;
+      }
+      this.guardando.set(true);
+      this.srv.crear({ ...datos, estado: 'ACTIVO' }).subscribe({
+        next: eqNuevo => this.incSrv.crear({
+          titulo: v.fallaTitulo.trim(), descripcion: v.fallaDetalle.trim(), prioridad: v.prioridad,
+          equipoId: eqNuevo.id
+        } as never).subscribe({
+          next: () => {
+            this.guardando.set(false);
+            this.mostrarForm.set(false);
+            this.notify.ok('Enviamos tu equipo. Ya puedes seguirlo en «Seguimiento».');
+            this.router.navigateByUrl('/incidencias');
+          },
+          error: err => {
+            this.guardando.set(false);
+            this.notify.error(mensajeError(err));
+            this.cargar();
+          }
+        }),
+        error: err => {
+          this.guardando.set(false);
+          this.notify.error(mensajeError(err));
+        }
+      });
+      return;
+    }
     this.guardando.set(true);
     const peticion = id ? this.srv.actualizar(id, datos) : this.srv.crear(datos);
     peticion.subscribe({
