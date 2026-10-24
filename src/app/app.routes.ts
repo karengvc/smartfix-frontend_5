@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
+import { rolGuard } from './core/rol.guard';
 import { Dashboard } from './pages/dashboard';
 import { Equipos } from './pages/equipos';
 import { Incidencias } from './pages/incidencias';
@@ -7,6 +8,7 @@ import { Login } from './pages/login';
 import { Mantenimientos } from './pages/mantenimientos';
 import { Register } from './pages/register';
 import { Shell } from './pages/shell';
+import { Usuarios } from './pages/usuarios';
 
 export const routes: Routes = [
   { path: 'login', component: Login },
@@ -20,7 +22,8 @@ export const routes: Routes = [
       { path: 'dashboard', component: Dashboard },
       { path: 'equipos', component: Equipos },
       { path: 'incidencias', component: Incidencias },
-      { path: 'mantenimientos', component: Mantenimientos }
+      { path: 'mantenimientos', component: Mantenimientos, canActivate: [rolGuard('ADMINISTRADOR', 'TECNICO')] },
+      { path: 'usuarios', component: Usuarios, canActivate: [rolGuard('ADMINISTRADOR')] }
     ]
   },
   { path: '**', redirectTo: '' }

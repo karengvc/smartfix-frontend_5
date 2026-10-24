@@ -13,7 +13,14 @@ export function mensajeError(err: unknown): string {
       if (typeof cuerpo.mensaje === 'string') {
         return cuerpo.mensaje;
       }
+      if (typeof cuerpo.detail === 'string' && cuerpo.detail) {
+        return cuerpo.detail;
+      }
+      if (typeof cuerpo.message === 'string' && cuerpo.message) {
+        return cuerpo.message;
+      }
     }
+    if (err.status === 403) return 'Tu rol no tiene permiso para esta acción.';
     if (err.status >= 500) return 'El servicio no responde. Verifica que esté en ejecución.';
     if (err.status === 404) return 'El registro no existe.';
     if (err.status === 409) return 'El registro ya existe.';

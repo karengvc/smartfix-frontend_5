@@ -1,9 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable, delay, of, tap, throwError } from 'rxjs';
-import { HttpErrorResponse } from '@angular/common/http';
+import { Observable, tap } from 'rxjs';
 import { CONFIG } from './config';
-import { LoginRequest, RegistroRequest, Usuario } from '../models/models';
+import { LoginRequest, RegistroRequest, Rol, Usuario, UsuarioResumen } from '../models/models';
 
 const CLAVE = 'smartfix_usuario';
 
@@ -14,21 +13,36 @@ export class AuthService {
   readonly usuario = signal<Usuario | null>(this.leer());
 
   login(datos: LoginRequest): Observable<Usuario> {
-    if (CONFIG.mock.auth) {
-      if (datos.correo === 'admin@smartfix.com' && datos.password === 'Admin123*') {
-        const u: Usuario = { id: 1, nombre: 'Administrador', correo: datos.correo, rol: 'ADMINISTRADOR' };
-        return of(u).pipe(delay(150), tap(x => this.guardar(x)));
-      }
-      return throwError(() => new HttpErrorResponse({ status: 401, error: { mensaje: 'Credenciales incorrectas' } }));
-    }
     return this.http.post<Usuario>(`${this.base}/login`, datos).pipe(tap(u => this.guardar(u)));
   }
 
   registrar(datos: RegistroRequest): Observable<Usuario> {
-    if (CONFIG.mock.auth) {
-      return of({ id: 2, nombre: datos.nombre, correo: datos.correo, rol: 'USUARIO' as const }).pipe(delay(150));
-    }
     return this.http.post<Usuario>(`${this.base}/register`, datos);
+  }
+
+  tecnicos(): Observable<UsuarioResumen[]> {
+    return this.http.get<UsuarioResumen[]>(`${this.base}/tecnicos`);
+  }
+
+  clientes(): Observable<UsuarioResumen[]> {
+    return this.http.get<UsuarioResumen[]>(`${this.base}/clientes`);
+  }
+
+  usuarios(): Observable<UsuarioResumen[]> {
+    return this.http.get<UsuarioResumen[]>(`${this.base}/usuarios`);
+  }
+
+  cambiarRol(id: number, rol: Rol): Observable<UsuarioResumen> {
+    return this.http.put<UsuarioResumen>(`${this.base}/usuarios/${id}/rol`, { rol });
+  }
+
+  token(): string | null {
+    return this.usuario()?.token ?? null;
+  }
+
+  tieneRol(...roles: Rol[]): boolean {
+    const rol = this.usuario()?.rol;
+    return !!rol && roles.includes(rol);
   }
 
   logout(): void {

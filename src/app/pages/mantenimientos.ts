@@ -1,11 +1,13 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, of } from 'rxjs';
+import { AuthService } from '../core/auth.service';
 import { EquipoService } from '../core/equipo.service';
 import { mensajeError } from '../core/http-error';
+import { IncidenciaService } from '../core/incidencia.service';
 import { MantenimientoService } from '../core/mantenimiento.service';
 import { NotifyService } from '../core/notify.service';
-import { Equipo, Mantenimiento } from '../models/models';
+import { Equipo, Incidencia, Mantenimiento, UsuarioResumen } from '../models/models';
 
 @Component({
   imports: [ReactiveFormsModule],
@@ -15,7 +17,9 @@ import { Equipo, Mantenimiento } from '../models/models';
         <h1>Mantenimientos</h1>
         <p class="muted">Intervenciones preventivas y correctivas sobre los equipos.</p>
       </div>
-      <button class="btn" (click)="nuevo()">+ Nuevo mantenimiento</button>
+      @if (auth.tieneRol('ADMINISTRADOR', 'TECNICO')) {
+        <button class="btn" (click)="nuevo()">+ Nuevo mantenimiento</button>
+      }
     </div>
 
     @if (mostrarForm()) {
@@ -41,12 +45,22 @@ import { Equipo, Mantenimiento } from '../models/models';
           </select>
           @if (invalido('equipoId')) { <small class="error">Selecciona el equipo.</small> }
         </label>
-        <label>ID del técnico *
-          <input type="number" min="1" formControlName="tecnicoId" />
-          @if (invalido('tecnicoId')) { <small class="error">Ingresa un ID de técnico válido.</small> }
+        <label>Técnico *
+          <select formControlName="tecnicoId">
+            <option [ngValue]="null" disabled>Selecciona un técnico</option>
+            @for (t of tecnicos(); track t.id) {
+              <option [ngValue]="t.id">{{ t.nombre }}</option>
+            }
+          </select>
+          @if (invalido('tecnicoId')) { <small class="error">Selecciona el técnico.</small> }
         </label>
-        <label>ID de incidencia (opcional)
-          <input type="number" min="1" formControlName="incidenciaId" />
+        <label>Incidencia relacionada (opcional)
+          <select formControlName="incidenciaId">
+            <option [ngValue]="null">Ninguna</option>
+            @for (i of incidencias(); track i.id) {
+              <option [ngValue]="i.id">#{{ i.id }} · {{ i.titulo }}</option>
+            }
+          </select>
         </label>
         <span></span>
         <label class="span-2">Descripción *
@@ -79,15 +93,19 @@ import { Equipo, Mantenimiento } from '../models/models';
             @for (m of lista(); track m.id) {
               <tr>
                 <td>{{ m.id }}</td>
-                <td><span class="pill">{{ m.tipo }}</span></td>
+                <td><span class="pill tipo-{{ m.tipo }}">{{ m.tipo }}</span></td>
                 <td>{{ m.fecha }}</td>
                 <td>{{ nombreEquipo(m.equipoId) }}</td>
-                <td>{{ m.incidenciaId ?? '—' }}</td>
-                <td>{{ m.tecnicoId }}</td>
+                <td>{{ m.incidenciaId ? '#' + m.incidenciaId : '—' }}</td>
+                <td>{{ nombreTecnico(m.tecnicoId) }}</td>
                 <td>{{ m.resultado }}</td>
                 <td class="row-actions">
-                  <button class="link" (click)="editar(m)">Editar</button>
-                  <button class="link danger" (click)="eliminar(m)">Eliminar</button>
+                  @if (auth.tieneRol('ADMINISTRADOR', 'TECNICO')) {
+                    <button class="link" (click)="editar(m)">Editar</button>
+                  }
+                  @if (auth.tieneRol('ADMINISTRADOR')) {
+                    <button class="link danger" (click)="eliminar(m)">Eliminar</button>
+                  }
                 </td>
               </tr>
             }
@@ -98,13 +116,17 @@ import { Equipo, Mantenimiento } from '../models/models';
   `
 })
 export class Mantenimientos implements OnInit {
+  protected readonly auth = inject(AuthService);
   private readonly srv = inject(MantenimientoService);
+  private readonly incidenciaSrv = inject(IncidenciaService);
   private readonly equipoSrv = inject(EquipoService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly notify = inject(NotifyService);
 
   protected readonly lista = signal<Mantenimiento[]>([]);
   protected readonly equipos = signal<Equipo[]>([]);
+  protected readonly incidencias = signal<Incidencia[]>([]);
+  protected readonly tecnicos = signal<UsuarioResumen[]>([]);
   protected readonly cargando = signal(true);
   protected readonly guardando = signal(false);
   protected readonly mostrarForm = signal(false);
@@ -123,6 +145,10 @@ export class Mantenimientos implements OnInit {
   ngOnInit(): void {
     this.equipoSrv.listar().pipe(catchError(() => of([] as Equipo[])))
       .subscribe(e => this.equipos.set(e));
+    this.incidenciaSrv.listar().pipe(catchError(() => of([] as Incidencia[])))
+      .subscribe(i => this.incidencias.set(i));
+    this.auth.tecnicos().pipe(catchError(() => of([] as UsuarioResumen[])))
+      .subscribe(t => this.tecnicos.set(t));
     this.cargar();
   }
 
@@ -136,9 +162,15 @@ export class Mantenimientos implements OnInit {
     return e ? e.nombre : `#${id}`;
   }
 
+  protected nombreTecnico(id: number): string {
+    const t = this.tecnicos().find(x => x.id === id);
+    return t ? t.nombre : `#${id}`;
+  }
+
   protected nuevo(): void {
     this.editandoId.set(null);
-    this.form.reset({ tipo: 'PREVENTIVO', equipoId: 0, incidenciaId: null, tecnicoId: null });
+    const propio = this.auth.tieneRol('TECNICO') ? (this.auth.usuario()?.id ?? null) : null;
+    this.form.reset({ tipo: 'PREVENTIVO', equipoId: 0, incidenciaId: null, tecnicoId: propio });
     this.mostrarForm.set(true);
   }
 

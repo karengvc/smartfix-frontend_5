@@ -11,7 +11,7 @@ import { Toast } from '../shared/toast';
   template: `
     <div class="auth-page">
       <form class="auth-card" [formGroup]="form" (ngSubmit)="registrar()" novalidate>
-        <div class="brand">Smart<span>Fix</span></div>
+        <div class="brand"><img class="logo-mini oscuro" src="logo.png" alt="" />Smart<span>Fix</span></div>
         <p class="muted">Crear una cuenta nueva</p>
 
         <label>Nombre completo

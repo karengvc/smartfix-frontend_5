@@ -1,19 +1,24 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ConfirmService } from '../core/confirm.service';
+import { AuthService } from '../core/auth.service';
 import { EquipoService } from '../core/equipo.service';
 import { mensajeError } from '../core/http-error';
 import { NotifyService } from '../core/notify.service';
-import { Equipo } from '../models/models';
+import { Equipo, UsuarioResumen } from '../models/models';
+import { catchError, of } from 'rxjs';
 
 @Component({
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, FormsModule],
   template: `
     <div class="page-head">
       <div>
-        <h1>Equipos</h1>
-        <p class="muted">Inventario de equipos tecnológicos.</p>
+        <h1>{{ auth.tieneRol('USUARIO') ? 'Mis equipos' : 'Equipos' }}</h1>
+        <p class="muted">{{ auth.tieneRol('USUARIO') ? 'Los equipos que registraste a tu nombre.' : 'Inventario de equipos de los clientes.' }}</p>
       </div>
-      <button class="btn" (click)="nuevo()">+ Nuevo equipo</button>
+      @if (auth.tieneRol('ADMINISTRADOR', 'USUARIO')) {
+        <button class="btn" (click)="nuevo()">+ {{ auth.tieneRol('USUARIO') ? 'Registrar mi equipo' : 'Nuevo equipo' }}</button>
+      }
     </div>
 
     @if (mostrarForm()) {
@@ -50,6 +55,16 @@ import { Equipo } from '../models/models';
             <option value="BAJA">BAJA</option>
           </select>
         </label>
+        @if (auth.tieneRol('ADMINISTRADOR')) {
+          <label class="span-2">Dueño del equipo
+            <select formControlName="propietarioId">
+              <option [ngValue]="null">Sin dueño</option>
+              @for (c of clientes(); track c.id) {
+                <option [ngValue]="c.id">{{ c.nombre }}</option>
+              }
+            </select>
+          </label>
+        }
         <label class="span-2">Descripción
           <textarea rows="2" formControlName="descripcion"></textarea>
         </label>
@@ -61,6 +76,21 @@ import { Equipo } from '../models/models';
       </form>
     }
 
+    <div class="toolbar glass">
+      <input class="buscar" type="search" placeholder="Buscar por nombre, serie, marca o dueño"
+             [ngModel]="texto()" (ngModelChange)="texto.set($event)" />
+      <select [ngModel]="tipoSel()" (ngModelChange)="tipoSel.set($event)">
+        <option value="">Todo tipo</option>
+        @for (t of tipos(); track t) { <option [value]="t">{{ t }}</option> }
+      </select>
+      <select [ngModel]="orden()" (ngModelChange)="orden.set($event)">
+        <option value="id-asc">Orden: ID</option>
+        <option value="nombre-asc">Orden: nombre A-Z</option>
+        <option value="tipo-asc">Orden: tipo A-Z</option>
+        <option value="estado-asc">Orden: estado</option>
+      </select>
+    </div>
+
     <div class="card table-wrap">
       @if (cargando()) {
         <p class="muted">Cargando...</p>
@@ -69,10 +99,10 @@ import { Equipo } from '../models/models';
       } @else {
         <table>
           <thead>
-            <tr><th>ID</th><th>Nombre</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>N.° serie</th><th>Estado</th><th></th></tr>
+            <tr><th>ID</th><th>Nombre</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>N.° serie</th>@if (!auth.tieneRol('USUARIO')) {<th>Dueño</th>}<th>Estado</th><th></th></tr>
           </thead>
           <tbody>
-            @for (e of equipos(); track e.id) {
+            @for (e of visibles(); track e.id) {
               <tr>
                 <td>{{ e.id }}</td>
                 <td>{{ e.nombre }}</td>
@@ -80,10 +110,15 @@ import { Equipo } from '../models/models';
                 <td>{{ e.marca }}</td>
                 <td>{{ e.modelo }}</td>
                 <td>{{ e.numeroSerie }}</td>
-                <td><span class="pill">{{ e.estado }}</span></td>
+                @if (!auth.tieneRol('USUARIO')) { <td>{{ nombreDueno(e.propietarioId) }}</td> }
+                <td><span class="pill eq-{{ e.estado }}">{{ e.estado }}</span></td>
                 <td class="row-actions">
-                  <button class="link" (click)="editar(e)">Editar</button>
-                  <button class="link danger" (click)="eliminar(e)">Eliminar</button>
+                  @if (auth.tieneRol('ADMINISTRADOR')) {
+                    <button class="link" (click)="editar(e)">Editar</button>
+                  }
+                  @if (auth.tieneRol('ADMINISTRADOR')) {
+                    <button class="link danger" (click)="eliminar(e)">Eliminar</button>
+                  }
                 </td>
               </tr>
             }
@@ -94,15 +129,33 @@ import { Equipo } from '../models/models';
   `
 })
 export class Equipos implements OnInit {
+  protected readonly auth = inject(AuthService);
   private readonly srv = inject(EquipoService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly notify = inject(NotifyService);
+  private readonly confirmar = inject(ConfirmService);
 
   protected readonly equipos = signal<Equipo[]>([]);
   protected readonly cargando = signal(true);
   protected readonly guardando = signal(false);
   protected readonly mostrarForm = signal(false);
   protected readonly editandoId = signal<number | null>(null);
+  protected readonly clientes = signal<UsuarioResumen[]>([]);
+  protected readonly texto = signal('');
+  protected readonly tipoSel = signal('');
+  protected readonly orden = signal('id-asc');
+  protected readonly tipos = computed(() => [...new Set(this.equipos().map(e => e.tipo))].sort());
+  protected readonly visibles = computed(() => {
+    const n = (t: string | null | undefined) => (t ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const q = n(this.texto()).trim();
+    const lista = this.equipos().filter(e =>
+      (!this.tipoSel() || e.tipo === this.tipoSel()) &&
+      (!q || n([e.id, e.nombre, e.tipo, e.marca, e.modelo, e.numeroSerie, this.nombreDueno(e.propietarioId)].join(' ')).includes(q)));
+    const campo = this.orden().split('-')[0];
+    return lista.sort((a, b) => campo === 'id'
+      ? (a.id ?? 0) - (b.id ?? 0)
+      : String((a as never)[campo] ?? '').localeCompare(String((b as never)[campo] ?? '')));
+  });
 
   protected readonly form = this.fb.group({
     nombre: ['', Validators.required],
@@ -111,11 +164,21 @@ export class Equipos implements OnInit {
     modelo: [''],
     numeroSerie: [''],
     estado: ['ACTIVO', Validators.required],
-    descripcion: ['']
+    descripcion: [''],
+    propietarioId: [null as number | null]
   });
 
   ngOnInit(): void {
+    if (!this.auth.tieneRol('USUARIO')) {
+      this.auth.clientes().pipe(catchError(() => of([] as UsuarioResumen[])))
+        .subscribe(c => this.clientes.set(c));
+    }
     this.cargar();
+  }
+
+  protected nombreDueno(id?: number | null): string {
+    if (!id) return '—';
+    return this.clientes().find(c => c.id === id)?.nombre ?? `#${id}`;
   }
 
   protected invalido(campo: 'nombre' | 'tipo' | 'marca'): boolean {
@@ -125,7 +188,7 @@ export class Equipos implements OnInit {
 
   protected nuevo(): void {
     this.editandoId.set(null);
-    this.form.reset({ estado: 'ACTIVO' });
+    this.form.reset({ estado: 'ACTIVO', propietarioId: null });
     this.mostrarForm.set(true);
   }
 
@@ -134,7 +197,7 @@ export class Equipos implements OnInit {
     this.form.reset({
       nombre: e.nombre, tipo: e.tipo, marca: e.marca,
       modelo: e.modelo ?? '', numeroSerie: e.numeroSerie ?? '',
-      estado: e.estado, descripcion: e.descripcion ?? ''
+      estado: e.estado, descripcion: e.descripcion ?? '', propietarioId: e.propietarioId ?? null
     });
     this.mostrarForm.set(true);
   }
@@ -167,13 +230,20 @@ export class Equipos implements OnInit {
   }
 
   protected eliminar(e: Equipo): void {
-    if (!e.id || !confirm(`¿Eliminar el equipo "${e.nombre}"?`)) return;
-    this.srv.eliminar(e.id).subscribe({
-      next: () => {
-        this.notify.ok('Equipo eliminado.');
-        this.cargar();
-      },
-      error: err => this.notify.error(mensajeError(err))
+    if (!e.id) return;
+    const id = e.id;
+    this.confirmar.preguntar({
+      titulo: 'Eliminar equipo', mensaje: `Se eliminará "${e.nombre}". Esta acción no se puede deshacer.`,
+      boton: 'Eliminar', peligro: true
+    }).then(ok => {
+      if (!ok) return;
+      this.srv.eliminar(id).subscribe({
+        next: () => {
+          this.notify.ok('Equipo eliminado.');
+          this.cargar();
+        },
+        error: err => this.notify.error(mensajeError(err))
+      });
     });
   }
 

@@ -9,30 +9,44 @@ import { NotifyService } from '../core/notify.service';
 @Component({
   imports: [ReactiveFormsModule, RouterLink, Toast],
   template: `
-    <div class="auth-page">
-      <form class="auth-card" [formGroup]="form" (ngSubmit)="entrar()" novalidate>
-        <div class="brand">Smart<span>Fix</span></div>
-        <p class="muted">Gestión de incidencias y mantenimiento de equipos</p>
+    <div class="landing">
+      <section class="hero">
+        <div class="logo-tile"><img src="logo.png" alt="SmartFix" /></div>
+        <div class="brand light sin-pad">Smart<span>Fix</span></div>
+        <h1 class="hero-title">Cada equipo, controlado de la recepción a la entrega.</h1>
+        <p class="hero-sub">Deja tu equipo, mira en qué paso va y recíbelo reparado.</p>
+        <ol class="flujo">
+          <li class="glass-dark">Recibido</li>
+          <li class="glass-dark">En análisis</li>
+          <li class="glass-dark">En reparación</li>
+          <li class="glass-dark">Finalizado</li>
+        </ol>
+      </section>
 
-        <label>Correo
-          <input type="email" formControlName="correo" placeholder="usuario@correo.com" />
-        </label>
-        @if (form.controls.correo.touched && form.controls.correo.invalid) {
-          <small class="error">Ingresa un correo válido.</small>
-        }
+      <section class="acceso">
+        <form class="auth-card glass-strong" [formGroup]="form" (ngSubmit)="entrar()" novalidate>
+          <h2>Iniciar sesión</h2>
 
-        <label>Contraseña
-          <input type="password" formControlName="password" placeholder="••••••••" />
-        </label>
-        @if (form.controls.password.touched && form.controls.password.invalid) {
-          <small class="error">La contraseña es obligatoria.</small>
-        }
+          <label>Correo
+            <input type="email" formControlName="correo" placeholder="usuario@correo.com" />
+          </label>
+          @if (form.controls.correo.touched && form.controls.correo.invalid) {
+            <small class="error">Ingresa un correo válido.</small>
+          }
 
-        <button class="btn" type="submit" [disabled]="cargando()">
-          {{ cargando() ? 'Ingresando...' : 'Iniciar sesión' }}
-        </button>
-        <p class="muted center">¿No tienes cuenta? <a routerLink="/registro">Regístrate</a></p>
-      </form>
+          <label>Contraseña
+            <input type="password" formControlName="password" placeholder="••••••••" />
+          </label>
+          @if (form.controls.password.touched && form.controls.password.invalid) {
+            <small class="error">La contraseña es obligatoria.</small>
+          }
+
+          <button class="btn" type="submit" [disabled]="cargando()">
+            {{ cargando() ? 'Ingresando...' : 'Entrar' }}
+          </button>
+          <p class="muted center">¿Eres cliente nuevo? <a routerLink="/registro">Crea tu cuenta</a></p>
+        </form>
+      </section>
     </div>
     <app-toast />
   `
